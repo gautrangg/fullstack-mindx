@@ -55,19 +55,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     if (authData && !token) {
       try {
-        console.log('Auth data received in URL, parsing...');
         const decoded = JSON.parse(decodeURIComponent(authData));
-        console.log('Decoded auth data:', decoded);
-        
+
         const { token: newToken, user: newUser } = decoded;
-        
+
         setToken(newToken);
         setUser(newUser);
         localStorage.setItem('authToken', newToken);
         localStorage.setItem('authUser', JSON.stringify(newUser));
-        
-        console.log('✅ User logged in:', newUser);
-        
+
         // Clean up URL
         window.history.replaceState({}, '', '/');
       } catch (err) {
@@ -82,12 +78,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       setError(null);
-      
-      console.log('Getting login URL from backend...');
+
       const response = await authAPI.getLoginUrl();
       const { authUrl } = response.data;
-      
-      console.log('Redirecting to:', authUrl);
+
       // Redirect to OpenID provider
       window.location.href = authUrl;
     } catch (err: any) {
@@ -102,13 +96,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       await authAPI.logout();
-      
+
       setUser(null);
       setToken(null);
       localStorage.removeItem('authToken');
       localStorage.removeItem('authUser');
-      
-      console.log('✅ User logged out');
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || 'Logout failed';
       setError(errorMessage);

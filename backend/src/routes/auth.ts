@@ -21,6 +21,11 @@ const getEndpoints = () => {
   };
 };
 
+// NOTE: In-memory session storage - NOT production-ready!
+// TODO Week 2: Replace with Redis, database, or stateless JWT validation
+// Current implementation will lose state on:
+// - Server restart
+// - Multiple pod deployment (Kubernetes scale > 1)
 let currentUser: any = null;
 
 // Login - Get authorization URL
@@ -74,7 +79,6 @@ router.get('/callback', async (req: Request, res: Response) => {
       user: currentUser
     }));
 
-    console.log('[AUTH] Redirecting to:', `${env.FRONTEND_URL}?auth=${userData.substring(0, 50)}...`);
     res.redirect(`${env.FRONTEND_URL}?auth=${userData}`);
   } catch (error: any) {
     const env = getEnv();
