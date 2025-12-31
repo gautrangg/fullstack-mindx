@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:3000/api';
+// Use env variable for API base URL
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const apiClient = axios.create({
   baseURL: API_BASE,
@@ -20,7 +21,7 @@ apiClient.interceptors.request.use((config) => {
 
 export const authAPI = {
   getLoginUrl: () => apiClient.get('/auth/login'),
-  callback: () => apiClient.post('/auth/callback'),
+  callback: (code: string) => apiClient.post('/auth/callback', { code }),
   getCurrentUser: () => apiClient.get('/auth/me'),
   logout: () => apiClient.post('/auth/logout'),
 };

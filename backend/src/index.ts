@@ -1,10 +1,16 @@
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load environment variables (only in development)
+// In production (K8s), env vars are injected by deployment
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: path.join(__dirname, '..', '.env') });
+}
+
 import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import authRoutes from './routes/auth';
 import dataRoutes from './routes/data';
-
-dotenv.config();
 
 const app: Express = express();
 const PORT = process.env.PORT || 3000;
@@ -14,8 +20,8 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/data', dataRoutes);
+app.use('/auth', authRoutes);
+app.use('/data', dataRoutes);
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {
@@ -28,20 +34,15 @@ app.get('/', (req: Request, res: Response) => {
     message: 'MindX Full Stack API',
     endpoints: [
       'GET /health',
-      'GET /api/auth/login',
-      'POST /api/auth/callback',
-      'GET /api/auth/me',
-      'POST /api/auth/logout',
-      'GET /api/data/user-data'
+      'GET /auth/login',
+      'GET /auth/callback',
+      'GET /auth/me',
+      'POST /auth/logout',
+      'GET /data/user-data'
     ]
   });
 });
 
 app.listen(PORT, () => {
-  console.log(`
-╔════════════════════════════════════════╗
-║  ✅ Server running on port ${PORT}         ║
-║  http://localhost:${PORT}               ║
-╚════════════════════════════════════════╝
-  `);
+  console.log(`✅ Server running on port ${PORT}`);
 });

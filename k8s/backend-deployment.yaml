@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mindx-api
+  labels:
+    app: mindx-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mindx-api
+  template:
+    metadata:
+      labels:
+        app: mindx-api
+    spec:
+      imagePullSecrets:
+      - name: acr-secret
+      containers:
+      - name: api
+        image: conglt.azurecr.io/mindx-api:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        - name: OPENID_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: openid-secrets
+              key: OPENID_CLIENT_ID
+        - name: OPENID_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: openid-secrets
+              key: OPENID_CLIENT_SECRET
+        - name: OPENID_PROVIDER
+          valueFrom:
+            secretKeyRef:
+              name: openid-secrets
+              key: OPENID_PROVIDER
+        - name: CALLBACK_URI
+          valueFrom:
+            secretKeyRef:
+              name: openid-secrets
+              key: CALLBACK_URI
+        - name: FRONTEND_URL
+          valueFrom:
+            secretKeyRef:
+              name: openid-secrets
+              key: FRONTEND_URL
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5

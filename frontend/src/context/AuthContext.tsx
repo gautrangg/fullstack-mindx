@@ -3,9 +3,11 @@ import { authAPI } from '../utils/api';
 
 export interface User {
   id: string;
-  name: string;
+  name?: string;
   email: string;
   avatar?: string;
+  uid?: string;
+  sub?: string;
 }
 
 export interface AuthContextType {
@@ -36,24 +38,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Handle auth callback from URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const authData = urlParams.get('auth');
+    const errorParam = urlParams.get('error');
+    
+    if (errorParam) {
+      const details = urlParams.get('details');
+      setError(`Authentication failed: ${details || errorParam}`);
+      console.error('Auth error from backend:', errorParam, details);
+      // Clean up URL
+      window.history.replaceState({}, '', '/');
+      return;
+    }
+    
+    if (authData && !token) {
+      try {
+        console.log('Auth data received in URL, parsing...');
+        const decoded = JSON.parse(decodeURIComponent(authData));
+        console.log('Decoded auth data:', decoded);
+        
+        const { token: newToken, user: newUser } = decoded;
+        
+        setToken(newToken);
+        setUser(newUser);
+        localStorage.setItem('authToken', newToken);
+        localStorage.setItem('authUser', JSON.stringify(newUser));
+        
+        console.log('✅ User logged in:', newUser);
+        
+        // Clean up URL
+        window.history.replaceState({}, '', '/');
+      } catch (err) {
+        console.error('Failed to parse auth data:', err);
+        setError('Failed to process authentication data');
+        window.history.replaceState({}, '', '/');
+      }
+    }
+  }, [token]);
+
   const login = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      // Call callback endpoint to get token and user
-      const response = await authAPI.callback();
-      const { token: newToken, user: newUser } = response.data;
+      console.log('Getting login URL from backend...');
+      const response = await authAPI.getLoginUrl();
+      const { authUrl } = response.data;
       
-      setToken(newToken);
-      setUser(newUser);
-      localStorage.setItem('authToken', newToken);
-      localStorage.setItem('authUser', JSON.stringify(newUser));
+      console.log('Redirecting to:', authUrl);
+      // Redirect to OpenID provider
+      window.location.href = authUrl;
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || 'Login failed';
       setError(errorMessage);
       console.error('Login error:', err);
-    } finally {
       setIsLoading(false);
     }
   }, []);
@@ -67,6 +107,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(null);
       localStorage.removeItem('authToken');
       localStorage.removeItem('authUser');
+      
+      console.log('✅ User logged out');
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || 'Logout failed';
       setError(errorMessage);
