@@ -19,6 +19,7 @@ spec:
       containers:
       - name: api
         image: conglt.azurecr.io/mindx-api:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
         env:
@@ -51,6 +52,11 @@ spec:
             secretKeyRef:
               name: openid-secrets
               key: FRONTEND_URL
+        - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+          valueFrom:
+            secretKeyRef:
+              name: monitoring-secrets
+              key: APPLICATIONINSIGHTS_CONNECTION_STRING
         resources:
           requests:
             memory: "128Mi"

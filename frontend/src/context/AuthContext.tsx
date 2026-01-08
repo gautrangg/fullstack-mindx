@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { authAPI } from '../utils/api';
+import { trackLogin, trackLogout, trackError } from '../utils/analytics';
 
 export interface User {
   id: string;
@@ -41,9 +42,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Handle auth callback from URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const authData = urlParams.get('auth');
+    const sessionId = urlParams.get('session');
     const errorParam = urlParams.get('error');
-    
+
     if (errorParam) {
       const details = urlParams.get('details');
       setError(`Authentication failed: ${details || errorParam}`);
@@ -52,25 +53,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.history.replaceState({}, '', '/');
       return;
     }
-    
-    if (authData && !token) {
-      try {
-        const decoded = JSON.parse(decodeURIComponent(authData));
 
-        const { token: newToken, user: newUser } = decoded;
+    if (sessionId && !token) {
+      // Fetch session data from backend using session ID
+      const fetchSessionData = async () => {
+        try {
+          setIsLoading(true);
+          const response = await authAPI.getSessionData(sessionId);
+          const { token: newToken, user: newUser } = response.data;
 
-        setToken(newToken);
-        setUser(newUser);
-        localStorage.setItem('authToken', newToken);
-        localStorage.setItem('authUser', JSON.stringify(newUser));
+          setToken(newToken);
+          setUser(newUser);
+          localStorage.setItem('authToken', newToken);
+          localStorage.setItem('authUser', JSON.stringify(newUser));
 
-        // Clean up URL
-        window.history.replaceState({}, '', '/');
-      } catch (err) {
-        console.error('Failed to parse auth data:', err);
-        setError('Failed to process authentication data');
-        window.history.replaceState({}, '', '/');
-      }
+          // Track successful login
+          trackLogin('openid-connect', newUser.id || newUser.sub);
+
+          // Clean up URL
+          window.history.replaceState({}, '', '/');
+        } catch (err) {
+          console.error('Failed to fetch session data:', err);
+          setError('Failed to process authentication session');
+          trackError('Session fetch failed', false);
+          window.history.replaceState({}, '', '/');
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      fetchSessionData();
     }
   }, [token]);
 
@@ -97,6 +109,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(true);
       await authAPI.logout();
 
+      // Track logout
+      trackLogout();
+
       setUser(null);
       setToken(null);
       localStorage.removeItem('authToken');
@@ -104,6 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || 'Logout failed';
       setError(errorMessage);
+      trackError(`Logout failed: ${errorMessage}`, false);
       console.error('Logout error:', err);
     } finally {
       setIsLoading(false);

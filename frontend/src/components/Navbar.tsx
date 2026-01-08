@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../utils/api';
+import { trackEvent } from '../utils/analytics';
 import { useState } from 'react';
 
 export default function Navbar() {
@@ -11,6 +12,7 @@ export default function Navbar() {
 
   const handleLogin = async () => {
     try {
+      trackEvent('Navigation', 'Click', 'Login Button');
       const response = await authAPI.getLoginUrl();
       const { authUrl } = response.data;
       // Redirect to MindX login
@@ -20,10 +22,20 @@ export default function Navbar() {
     }
   };
 
+  const handleLogout = () => {
+    trackEvent('Navigation', 'Click', 'Logout Button');
+    logout();
+  };
+
+  const handleLogoClick = () => {
+    trackEvent('Navigation', 'Click', 'Logo');
+    navigate('/');
+  };
+
   return (
     <nav style={styles.navbar}>
       <div style={styles.container}>
-        <div style={styles.brand} onClick={() => navigate('/')}>
+        <div style={styles.brand} onClick={handleLogoClick}>
           <span style={styles.logo}>⚡</span>
           <h2 style={styles.title}>MindX Full Stack</h2>
         </div>
@@ -47,7 +59,7 @@ export default function Navbar() {
                 </div>
               </div>
               <button
-                onClick={logout}
+                onClick={handleLogout}
                 style={{
                   ...styles.logoutBtn,
                   ...(isHoveringLogout ? styles.logoutBtnHover : {})

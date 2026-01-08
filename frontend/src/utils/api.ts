@@ -22,6 +22,7 @@ apiClient.interceptors.request.use((config) => {
 export const authAPI = {
   getLoginUrl: () => apiClient.get('/auth/login'),
   callback: (code: string) => apiClient.post('/auth/callback', { code }),
+  getSessionData: (sessionId: string) => apiClient.get(`/auth/session/${sessionId}`),
   getCurrentUser: () => apiClient.get('/auth/me'),
   logout: () => apiClient.post('/auth/logout'),
 };

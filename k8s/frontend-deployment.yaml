@@ -18,7 +18,8 @@ spec:
       - name: acr-secret
       containers:
       - name: web
-        image: conglt.azurecr.io/mindx-web:latest
+        image: conglt.azurecr.io/mindx-frontend:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
         resources:

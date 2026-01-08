@@ -37,6 +37,7 @@ Thumbs.db
 # Kubernetes secrets (DO NOT COMMIT)
 k8s/*secret*.yaml
 k8s/secrets.yaml
+k8s/monitoring-secrets.yaml
 
 # Docker
 *.env.docker

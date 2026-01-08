@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import axios from 'axios';
+import { trackAuthEvent } from '../middleware/telemetry';
 
 const router = express.Router();
 
@@ -26,7 +27,29 @@ const getEndpoints = () => {
 // Current implementation will lose state on:
 // - Server restart
 // - Multiple pod deployment (Kubernetes scale > 1)
-let currentUser: any = null;
+interface SessionData {
+  token: string;
+  user: any;
+  expiresAt: number;
+}
+
+const sessions = new Map<string, SessionData>();
+const SESSION_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
+
+// Generate random session ID
+function generateSessionId(): string {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+}
+
+// Clean expired sessions periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [sessionId, data] of sessions.entries()) {
+    if (data.expiresAt < now) {
+      sessions.delete(sessionId);
+    }
+  }
+}, 60 * 60 * 1000); // Clean every hour
 
 // Login - Get authorization URL
 router.get('/login', (req: Request, res: Response) => {
@@ -71,37 +94,103 @@ router.get('/callback', async (req: Request, res: Response) => {
       }
     });
 
-    currentUser = userResponse.data;
-
-    // Redirect to frontend with auth data
-    const userData = encodeURIComponent(JSON.stringify({
+    // Create session with short ID instead of putting all data in URL
+    const sessionId = generateSessionId();
+    sessions.set(sessionId, {
       token: access_token,
-      user: currentUser
-    }));
+      user: userResponse.data,
+      expiresAt: Date.now() + SESSION_EXPIRY
+    });
 
-    res.redirect(`${env.FRONTEND_URL}?auth=${userData}`);
+    // Track successful login
+    trackAuthEvent('LoginSuccess', {
+      userId: userResponse.data.id || userResponse.data.sub,
+      provider: 'mindx-openid'
+    });
+
+    // Redirect to frontend with only session ID (short URL)
+    res.redirect(`${env.FRONTEND_URL}?session=${sessionId}`);
   } catch (error: any) {
     const env = getEnv();
     console.error('Authentication error:', error.response?.data || error.message);
     const errorDetail = error.response?.data?.error_description || error.message;
+
+    // Track login failure
+    trackAuthEvent('LoginFailed', {
+      error: errorDetail,
+      code: req.query.code as string || 'no_code'
+    });
+
     res.redirect(`${env.FRONTEND_URL}?error=auth_failed&details=${encodeURIComponent(errorDetail)}`);
   }
 });
 
-// Get current user
+// Get session data by session ID
+router.get('/session/:sessionId', (req: Request, res: Response) => {
+  const { sessionId } = req.params;
+  const sessionData = sessions.get(sessionId);
+
+  if (!sessionData) {
+    return res.status(401).json({ error: 'Invalid or expired session' });
+  }
+
+  // Check if session expired
+  if (sessionData.expiresAt < Date.now()) {
+    sessions.delete(sessionId);
+    return res.status(401).json({ error: 'Session expired' });
+  }
+
+  res.json({
+    token: sessionData.token,
+    user: sessionData.user
+  });
+});
+
+// Get current user by token
 router.get('/me', (req: Request, res: Response) => {
   const token = req.headers.authorization?.split(' ')[1];
-  
-  if (!token || !currentUser) {
+
+  if (!token) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  
-  res.json(currentUser);
+
+  // Find session by token
+  let userFound = false;
+  for (const [sessionId, sessionData] of sessions.entries()) {
+    if (sessionData.token === token) {
+      // Check expiry
+      if (sessionData.expiresAt < Date.now()) {
+        sessions.delete(sessionId);
+        return res.status(401).json({ error: 'Session expired' });
+      }
+      userFound = true;
+      return res.json(sessionData.user);
+    }
+  }
+
+  if (!userFound) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 });
 
 // Logout
 router.post('/logout', (req: Request, res: Response) => {
-  currentUser = null;
+  const token = req.headers.authorization?.split(' ')[1];
+
+  if (token) {
+    // Find and delete session by token
+    for (const [sessionId, sessionData] of sessions.entries()) {
+      if (sessionData.token === token) {
+        // Track logout before deleting session
+        trackAuthEvent('Logout', {
+          userId: sessionData.user.id || sessionData.user.sub
+        });
+        sessions.delete(sessionId);
+        break;
+      }
+    }
+  }
+
   res.json({ message: 'Logged out' });
 });
 
